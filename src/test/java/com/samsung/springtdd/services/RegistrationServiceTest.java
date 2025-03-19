@@ -55,12 +55,9 @@ public class RegistrationServiceTest {
 
     private final LocalDateTime fixedDateTime = LocalDateTime.of(2023, 1, 1, 10, 0);
     private final Clock fixedClock = Clock.fixed(Instant.parse("2023-01-01T10:00:00Z"), ZoneId.systemDefault());
-
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(registrationService).build();
-        when(clock.instant()).thenReturn(fixedClock.instant());
-        when(clock.getZone()).thenReturn(fixedClock.getZone());
     }
 
     @Test
@@ -119,27 +116,40 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    void should_return_exception_for_course_already_registed() {
-        Student student = Student.builder().id(1L).email("test@example.com").build();
+    void should_return_exception_for_register_course_already_registed() {
+
+        Student student = Student.builder()
+                .id(1L)
+                .email("test@example.com")
+                .build();
 
         Course course = Course.builder()
                 .id(1L)
                 .name("Future Course")
-                .startTime(LocalDateTime.of(2023, 1, 2, 10, 0))
-                .endTime(LocalDateTime.of(2023, 1, 3, 10, 0))
+                .startTime(fixedDateTime.plusDays(1)) // Đảm bảo khóa học chưa bắt đầu
+                .endTime(fixedDateTime.plusDays(2))
                 .price(1000L)
                 .build();
 
+        Registration existingRegistration = Registration.builder()
+                .student(student)
+                .course(course)
+                .price(1000L)
+                .registeredDate(fixedDateTime.minusDays(1)) // Đăng ký trước đó
+                .build();
+
+        // Mock repository
         when(studentRepository.findByEmail("test@example.com")).thenReturn(Optional.of(student));
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
-        when(registrationRepository.findByStudentAndCourse(student, course))
-                .thenReturn(Optional.of(new Registration(student, course, course.getPrice(), LocalDateTime.now(clock))));
+        when(registrationRepository.findByStudentAndCourse(student, course)).thenReturn(Optional.of(existingRegistration));
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                registrationService.register("test@example.com", 1L)
-        );
+        // Thực hiện và kiểm tra
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            registrationService.register("test@example.com", 1L);
+        });
         assertEquals("Already registered for this course", exception.getMessage());
 
+        // Xác minh không có bản ghi mới được lưu
         verify(registrationRepository, never()).save(any(Registration.class));
     }
 
@@ -171,14 +181,17 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    public void should_return_unregister_successfully() throws Exception {
-        Student student = new Student();
-        student.setId(1L);
-        student.setEmail("test@example.com");
+    public void should_return_unregister_successfully_not_started_yet() throws Exception {
+        Student student = Student.builder().id(1L).email("test@example.com").build();
+        // Course started in the past
+        Course course = Course.builder()
+                .id(1L)
+                .name("Started Course")
+                .startTime(LocalDateTime.now().plusDays(5))
+                .endTime(LocalDateTime.now().plusDays(1))
+                .price(1000L)
+                .build();
 
-        Course course = new Course();
-        course.setId(1L);
-        course.setStartTime(LocalDateTime.now().plusDays(1));
 
         Registration registration = new Registration();
         registration.setStudent(student);
@@ -243,5 +256,6 @@ public class RegistrationServiceTest {
         assertEquals("Cannot unregister from a course that has already started", exception.getMessage());
         verify(registrationRepository, never()).delete(any(Registration.class));
     }
+
 
 }
