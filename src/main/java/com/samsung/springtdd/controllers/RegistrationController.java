@@ -3,6 +3,7 @@ package com.samsung.springtdd.controllers;
 import com.samsung.springtdd.models.Course;
 import com.samsung.springtdd.models.DTO.RegistrationRequest;
 import com.samsung.springtdd.services.RegistrationService;
+import jakarta.websocket.server.PathParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

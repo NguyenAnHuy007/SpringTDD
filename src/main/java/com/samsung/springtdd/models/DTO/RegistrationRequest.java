@@ -8,15 +8,7 @@ public class RegistrationRequest {
         return email;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
     public Long getCourseId() {
         return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
     }
 }

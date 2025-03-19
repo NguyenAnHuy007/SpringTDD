@@ -64,9 +64,9 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    void should_register_successfully_and_return_course_list() {
-        // Dữ liệu mẫu
-        Student student = Student.builder().id(1L).email("tetest@example.com").build();
+    void should_return_register_successfully_and_return_course_list() {
+
+        Student student = Student.builder().id(1L).email("test@example.com").build();
 
         Course course = Course.builder()
                 .id(1L)
@@ -98,7 +98,7 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    void should_throw_exception_for_course_already_started() {
+    void should_return_exception_for_course_already_started() {
         Student student = Student.builder().id(1L).email("test@example.com").build();
 
         Course course = Course.builder()
@@ -119,7 +119,7 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    void should_throw_exception_for_course_already_registed() {
+    void should_return_exception_for_course_already_registed() {
         Student student = Student.builder().id(1L).email("test@example.com").build();
 
         Course course = Course.builder()
@@ -145,7 +145,7 @@ public class RegistrationServiceTest {
 
 
     @Test
-    void should_throw_exception_for_student_does_not_exist() {
+    void should_return_exception_for_student_does_not_exist() {
         when(studentRepository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> {
@@ -156,7 +156,7 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    void should_throw_exception_for_course_not_exist() {
+    void should_return_exception_for_course_not_exist() {
         Student student = Student.builder().id(1L).email("test@example.com").build();
 
         when(studentRepository.findByEmail("test@example.com")).thenReturn(Optional.of(student));
@@ -171,30 +171,77 @@ public class RegistrationServiceTest {
     }
 
     @Test
-    public void testUnregisterSuccess() throws Exception {
-        // Dữ liệu giả lập
+    public void should_return_unregister_successfully() throws Exception {
         Student student = new Student();
         student.setId(1L);
         student.setEmail("test@example.com");
 
         Course course = new Course();
         course.setId(1L);
-        course.setStartTime(LocalDateTime.now().plusDays(1)); // Khóa học chưa diễn ra
+        course.setStartTime(LocalDateTime.now().plusDays(1));
 
         Registration registration = new Registration();
         registration.setStudent(student);
         registration.setCourse(course);
 
-        // Mock các repository
         when(studentRepository.findByEmail("test@example.com")).thenReturn(Optional.of(student));
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
         when(registrationRepository.findByStudentAndCourse(student, course)).thenReturn(Optional.of(registration));
 
-        // Gửi yêu cầu DELETE
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/unregister/1/test@example.com"))
                 .andExpect(status().isNoContent());
 
-        // Xác minh rằng bản ghi đã bị xóa
         verify(registrationRepository, times(1)).delete(registration);
     }
+
+
+    @Test
+    void should_return_exception_for_unregister_with_nonexistent_email() {
+        String nonExistentEmail = "nonexistent@example.com";
+        when(studentRepository.findByEmail(nonExistentEmail)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                registrationService.unregister(1L, nonExistentEmail));
+        assertEquals("Student not found", exception.getMessage());
+
+        verifyNoInteractions(courseRepository, registrationRepository);
+    }
+
+    @Test
+    void should_return_exception_for_unregister_with_nonexistent_course() {
+        Student student = Student.builder().id(1L).email("test@example.com").build();
+        when(studentRepository.findByEmail("test@example.com")).thenReturn(Optional.of(student));
+        when(courseRepository.findById(999L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                registrationService.unregister(999L, "test@example.com"));
+        assertEquals("Course not found", exception.getMessage());
+
+        verify(registrationRepository, never()).delete(any(Registration.class));
+    }
+
+    @Test
+    void should_return_exception_for_unregister_course_already_started() {
+        // Arrange
+        Student student = Student.builder().id(1L).email("test@example.com").build();
+        // Course started in the past
+        Course course = Course.builder()
+                .id(1L)
+                .name("Started Course")
+                .startTime(LocalDateTime.now().minusDays(1))
+                .endTime(LocalDateTime.now().plusDays(1))
+                .price(1000L)
+                .build();
+
+        when(studentRepository.findByEmail("test@example.com")).thenReturn(Optional.of(student));
+        when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+
+        // Act & Assert
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                registrationService.unregister(1L, "test@example.com")
+        );
+        assertEquals("Cannot unregister from a course that has already started", exception.getMessage());
+        verify(registrationRepository, never()).delete(any(Registration.class));
+    }
+
 }
